@@ -1,0 +1,2031 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <link rel="stylesheet" href="css/leaflet.css">
+        <link rel="stylesheet" href="css/L.Control.Layers.Tree.css">
+        <link rel="stylesheet" href="css/L.Control.Locate.min.css">
+        <link rel="stylesheet" href="css/qgis2web.css">
+        <link rel="stylesheet" href="css/fontawesome-all.min.css">
+        <link rel="stylesheet" href="css/leaflet-control-geocoder.Geocoder.css">
+        <link rel="stylesheet" href="css/leaflet-measure.css">
+        <style>
+        html, body, #map {
+            width: 100%;
+            height: 100%;
+            padding: 0;
+            margin: 0;
+        }
+        </style>
+        <title>Mapa dinâmico dos Grupos Escoteiros do Brasil</title>
+    </head>
+    <body>
+        <div id="map">
+        </div>
+        <script src="js/qgis2web_expressions.js"></script>
+        <script src="js/leaflet.js"></script>
+        <script src="js/L.Control.Layers.Tree.min.js"></script>
+        <script src="js/L.Control.Locate.min.js"></script>
+        <script src="js/leaflet.rotatedMarker.js"></script>
+        <script src="js/leaflet.pattern.js"></script>
+        <script src="js/leaflet-hash.js"></script>
+        <script src="js/Autolinker.min.js"></script>
+        <script src="js/rbush.min.js"></script>
+        <script src="js/labelgun.min.js"></script>
+        <script src="js/labels.js"></script>
+        <script src="js/leaflet-control-geocoder.Geocoder.js"></script>
+        <script src="js/leaflet-measure.js"></script>
+        <script src="data/grupos_escoteirosxlsxSP1_1.js"></script>
+        <script src="data/grupos_escoteirosxlsxAM1_2.js"></script>
+        <script src="data/grupos_escoteirosxlsxAL_3.js"></script>
+        <script src="data/grupos_escoteirosxlsxBA_4.js"></script>
+        <script src="data/grupos_escoteirosxlsxAP_5.js"></script>
+        <script src="data/grupos_escoteirosxlsxAC_6.js"></script>
+        <script src="data/grupos_escoteirosxlsxCE_7.js"></script>
+        <script src="data/grupos_escoteirosxlsxDF_8.js"></script>
+        <script src="data/grupos_escoteirosxlsxES_9.js"></script>
+        <script src="data/grupos_escoteirosxlsxGO_10.js"></script>
+        <script src="data/grupos_escoteirosxlsxMA_11.js"></script>
+        <script src="data/grupos_escoteirosxlsxMG_12.js"></script>
+        <script src="data/grupos_escoteirosxlsxMS_13.js"></script>
+        <script src="data/grupos_escoteirosxlsxMT_14.js"></script>
+        <script src="data/grupos_escoteirosxlsxPA_15.js"></script>
+        <script src="data/grupos_escoteirosxlsxPB_16.js"></script>
+        <script src="data/grupos_escoteirosxlsxPE_17.js"></script>
+        <script src="data/grupos_escoteirosxlsxPI_18.js"></script>
+        <script src="data/grupos_escoteirosxlsxPR_19.js"></script>
+        <script src="data/grupos_escoteirosxlsxRJ_20.js"></script>
+        <script src="data/grupos_escoteirosxlsxRN_21.js"></script>
+        <script src="data/grupos_escoteirosxlsxRO_22.js"></script>
+        <script src="data/grupos_escoteirosxlsxRR_23.js"></script>
+        <script src="data/grupos_escoteirosxlsxRS_24.js"></script>
+        <script src="data/grupos_escoteirosxlsxSC_25.js"></script>
+        <script src="data/grupos_escoteirosxlsxSE_26.js"></script>
+        <script src="data/grupos_escoteirosxlsxTO_27.js"></script>
+        <script>
+        var highlightLayer;
+        function highlightFeature(e) {
+            highlightLayer = e.target;
+
+            if (e.target.feature.geometry.type === 'LineString' || e.target.feature.geometry.type === 'MultiLineString') {
+              highlightLayer.setStyle({
+                color: '#ffff00',
+              });
+            } else {
+              highlightLayer.setStyle({
+                fillColor: '#ffff00',
+                fillOpacity: 1
+              });
+            }
+        }
+        var map = L.map('map', {
+            zoomControl:false, maxZoom:28, minZoom:1
+        }).fitBounds([[-11.448860603683709,-58.54916659066073],[4.477275277312076,-36.37554278623579]]);
+        var hash = new L.Hash(map);
+        map.attributionControl.setPrefix('<a href="https://github.com/tomchadwin/qgis2web" target="_blank">qgis2web</a> &middot; <a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> &middot; <a href="https://qgis.org">QGIS</a>');
+        var autolinker = new Autolinker({truncate: {length: 30, location: 'smart'}});
+        // remove popup's row if "visible-with-data"
+        function removeEmptyRowsFromPopupContent(content, feature) {
+         var tempDiv = document.createElement('div');
+         tempDiv.innerHTML = content;
+         var rows = tempDiv.querySelectorAll('tr');
+         for (var i = 0; i < rows.length; i++) {
+             var td = rows[i].querySelector('td.visible-with-data');
+             var key = td ? td.id : '';
+             if (td && td.classList.contains('visible-with-data') && feature.properties[key] == null) {
+                 rows[i].parentNode.removeChild(rows[i]);
+             }
+         }
+         return tempDiv.innerHTML;
+        }
+        // add class to format popup if it contains media
+		function addClassToPopupIfMedia(content, popup) {
+			var tempDiv = document.createElement('div');
+			tempDiv.innerHTML = content;
+			if (tempDiv.querySelector('td img')) {
+				popup._contentNode.classList.add('media');
+					// Delay to force the redraw
+					setTimeout(function() {
+						popup.update();
+					}, 10);
+			} else {
+				popup._contentNode.classList.remove('media');
+			}
+		}
+        var title = new L.Control({'position':'topright'});
+        title.onAdd = function (map) {
+            this._div = L.DomUtil.create('div', 'info');
+            this.update();
+            return this._div;
+        };
+        title.update = function () {
+            this._div.innerHTML = '<h2>Mapa dinâmico dos Grupos Escoteiros do Brasil</h2>';
+        };
+        title.addTo(map);
+        var zoomControl = L.control.zoom({
+            position: 'topleft'
+        }).addTo(map);
+        L.control.locate({locateOptions: {maxZoom: 19}}).addTo(map);
+        var measureControl = new L.Control.Measure({
+            position: 'topleft',
+            primaryLengthUnit: 'meters',
+            secondaryLengthUnit: 'kilometers',
+            primaryAreaUnit: 'sqmeters',
+            secondaryAreaUnit: 'hectares'
+        });
+        measureControl.addTo(map);
+        document.getElementsByClassName('leaflet-control-measure-toggle')[0].innerHTML = '';
+        document.getElementsByClassName('leaflet-control-measure-toggle')[0].className += ' fas fa-ruler';
+        var bounds_group = new L.featureGroup([]);
+        function setBounds() {
+        }
+        map.createPane('pane_OpenStreetMap_0');
+        map.getPane('pane_OpenStreetMap_0').style.zIndex = 400;
+        var layer_OpenStreetMap_0 = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            pane: 'pane_OpenStreetMap_0',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 0,
+            maxNativeZoom: 19
+        });
+        layer_OpenStreetMap_0;
+        map.addLayer(layer_OpenStreetMap_0);
+        function pop_grupos_escoteirosxlsxSP1_1(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['ge'] !== null ? autolinker.link(feature.properties['ge'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['uf'] !== null ? autolinker.link(feature.properties['uf'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['cidade'] !== null ? autolinker.link(feature.properties['cidade'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['endereço'] !== null ? autolinker.link(feature.properties['endereço'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_grupos_escoteirosxlsxSP1_1_0() {
+            return {
+                pane: 'pane_grupos_escoteirosxlsxSP1_1',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(117,117,117,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_grupos_escoteirosxlsxSP1_1');
+        map.getPane('pane_grupos_escoteirosxlsxSP1_1').style.zIndex = 401;
+        map.getPane('pane_grupos_escoteirosxlsxSP1_1').style['mix-blend-mode'] = 'normal';
+        var layer_grupos_escoteirosxlsxSP1_1 = new L.geoJson(json_grupos_escoteirosxlsxSP1_1, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_grupos_escoteirosxlsxSP1_1',
+            layerName: 'layer_grupos_escoteirosxlsxSP1_1',
+            pane: 'pane_grupos_escoteirosxlsxSP1_1',
+            onEachFeature: pop_grupos_escoteirosxlsxSP1_1,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_grupos_escoteirosxlsxSP1_1_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_grupos_escoteirosxlsxSP1_1);
+        map.addLayer(layer_grupos_escoteirosxlsxSP1_1);
+        function pop_grupos_escoteirosxlsxAM1_2(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['ge'] !== null ? autolinker.link(feature.properties['ge'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['uf'] !== null ? autolinker.link(feature.properties['uf'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['cidade'] !== null ? autolinker.link(feature.properties['cidade'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['endereço'] !== null ? autolinker.link(feature.properties['endereço'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_grupos_escoteirosxlsxAM1_2_0() {
+            return {
+                pane: 'pane_grupos_escoteirosxlsxAM1_2',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(51,160,44,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_grupos_escoteirosxlsxAM1_2');
+        map.getPane('pane_grupos_escoteirosxlsxAM1_2').style.zIndex = 402;
+        map.getPane('pane_grupos_escoteirosxlsxAM1_2').style['mix-blend-mode'] = 'normal';
+        var layer_grupos_escoteirosxlsxAM1_2 = new L.geoJson(json_grupos_escoteirosxlsxAM1_2, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_grupos_escoteirosxlsxAM1_2',
+            layerName: 'layer_grupos_escoteirosxlsxAM1_2',
+            pane: 'pane_grupos_escoteirosxlsxAM1_2',
+            onEachFeature: pop_grupos_escoteirosxlsxAM1_2,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_grupos_escoteirosxlsxAM1_2_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_grupos_escoteirosxlsxAM1_2);
+        map.addLayer(layer_grupos_escoteirosxlsxAM1_2);
+        function pop_grupos_escoteirosxlsxAL_3(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['ge'] !== null ? autolinker.link(feature.properties['ge'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['uf'] !== null ? autolinker.link(feature.properties['uf'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['cidade'] !== null ? autolinker.link(feature.properties['cidade'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['endereço'] !== null ? autolinker.link(feature.properties['endereço'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_grupos_escoteirosxlsxAL_3_0() {
+            return {
+                pane: 'pane_grupos_escoteirosxlsxAL_3',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(58,97,207,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_grupos_escoteirosxlsxAL_3');
+        map.getPane('pane_grupos_escoteirosxlsxAL_3').style.zIndex = 403;
+        map.getPane('pane_grupos_escoteirosxlsxAL_3').style['mix-blend-mode'] = 'normal';
+        var layer_grupos_escoteirosxlsxAL_3 = new L.geoJson(json_grupos_escoteirosxlsxAL_3, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_grupos_escoteirosxlsxAL_3',
+            layerName: 'layer_grupos_escoteirosxlsxAL_3',
+            pane: 'pane_grupos_escoteirosxlsxAL_3',
+            onEachFeature: pop_grupos_escoteirosxlsxAL_3,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_grupos_escoteirosxlsxAL_3_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_grupos_escoteirosxlsxAL_3);
+        map.addLayer(layer_grupos_escoteirosxlsxAL_3);
+        function pop_grupos_escoteirosxlsxBA_4(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['ge'] !== null ? autolinker.link(feature.properties['ge'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['uf'] !== null ? autolinker.link(feature.properties['uf'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['cidade'] !== null ? autolinker.link(feature.properties['cidade'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['endereço'] !== null ? autolinker.link(feature.properties['endereço'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_grupos_escoteirosxlsxBA_4_0() {
+            return {
+                pane: 'pane_grupos_escoteirosxlsxBA_4',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(174,0,3,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_grupos_escoteirosxlsxBA_4');
+        map.getPane('pane_grupos_escoteirosxlsxBA_4').style.zIndex = 404;
+        map.getPane('pane_grupos_escoteirosxlsxBA_4').style['mix-blend-mode'] = 'normal';
+        var layer_grupos_escoteirosxlsxBA_4 = new L.geoJson(json_grupos_escoteirosxlsxBA_4, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_grupos_escoteirosxlsxBA_4',
+            layerName: 'layer_grupos_escoteirosxlsxBA_4',
+            pane: 'pane_grupos_escoteirosxlsxBA_4',
+            onEachFeature: pop_grupos_escoteirosxlsxBA_4,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_grupos_escoteirosxlsxBA_4_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_grupos_escoteirosxlsxBA_4);
+        map.addLayer(layer_grupos_escoteirosxlsxBA_4);
+        function pop_grupos_escoteirosxlsxAP_5(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['ge'] !== null ? autolinker.link(feature.properties['ge'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['uf'] !== null ? autolinker.link(feature.properties['uf'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['cidade'] !== null ? autolinker.link(feature.properties['cidade'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['endereço'] !== null ? autolinker.link(feature.properties['endereço'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_grupos_escoteirosxlsxAP_5_0() {
+            return {
+                pane: 'pane_grupos_escoteirosxlsxAP_5',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(57,85,139,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_grupos_escoteirosxlsxAP_5');
+        map.getPane('pane_grupos_escoteirosxlsxAP_5').style.zIndex = 405;
+        map.getPane('pane_grupos_escoteirosxlsxAP_5').style['mix-blend-mode'] = 'normal';
+        var layer_grupos_escoteirosxlsxAP_5 = new L.geoJson(json_grupos_escoteirosxlsxAP_5, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_grupos_escoteirosxlsxAP_5',
+            layerName: 'layer_grupos_escoteirosxlsxAP_5',
+            pane: 'pane_grupos_escoteirosxlsxAP_5',
+            onEachFeature: pop_grupos_escoteirosxlsxAP_5,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_grupos_escoteirosxlsxAP_5_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_grupos_escoteirosxlsxAP_5);
+        map.addLayer(layer_grupos_escoteirosxlsxAP_5);
+        function pop_grupos_escoteirosxlsxAC_6(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['ge'] !== null ? autolinker.link(feature.properties['ge'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['uf'] !== null ? autolinker.link(feature.properties['uf'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['cidade'] !== null ? autolinker.link(feature.properties['cidade'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['endereço'] !== null ? autolinker.link(feature.properties['endereço'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_grupos_escoteirosxlsxAC_6_0() {
+            return {
+                pane: 'pane_grupos_escoteirosxlsxAC_6',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(215,209,24,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_grupos_escoteirosxlsxAC_6');
+        map.getPane('pane_grupos_escoteirosxlsxAC_6').style.zIndex = 406;
+        map.getPane('pane_grupos_escoteirosxlsxAC_6').style['mix-blend-mode'] = 'normal';
+        var layer_grupos_escoteirosxlsxAC_6 = new L.geoJson(json_grupos_escoteirosxlsxAC_6, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_grupos_escoteirosxlsxAC_6',
+            layerName: 'layer_grupos_escoteirosxlsxAC_6',
+            pane: 'pane_grupos_escoteirosxlsxAC_6',
+            onEachFeature: pop_grupos_escoteirosxlsxAC_6,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_grupos_escoteirosxlsxAC_6_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_grupos_escoteirosxlsxAC_6);
+        map.addLayer(layer_grupos_escoteirosxlsxAC_6);
+        function pop_grupos_escoteirosxlsxCE_7(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['ge'] !== null ? autolinker.link(feature.properties['ge'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['uf'] !== null ? autolinker.link(feature.properties['uf'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['cidade'] !== null ? autolinker.link(feature.properties['cidade'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['endereço'] !== null ? autolinker.link(feature.properties['endereço'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_grupos_escoteirosxlsxCE_7_0() {
+            return {
+                pane: 'pane_grupos_escoteirosxlsxCE_7',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(30,118,58,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_grupos_escoteirosxlsxCE_7');
+        map.getPane('pane_grupos_escoteirosxlsxCE_7').style.zIndex = 407;
+        map.getPane('pane_grupos_escoteirosxlsxCE_7').style['mix-blend-mode'] = 'normal';
+        var layer_grupos_escoteirosxlsxCE_7 = new L.geoJson(json_grupos_escoteirosxlsxCE_7, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_grupos_escoteirosxlsxCE_7',
+            layerName: 'layer_grupos_escoteirosxlsxCE_7',
+            pane: 'pane_grupos_escoteirosxlsxCE_7',
+            onEachFeature: pop_grupos_escoteirosxlsxCE_7,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_grupos_escoteirosxlsxCE_7_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_grupos_escoteirosxlsxCE_7);
+        map.addLayer(layer_grupos_escoteirosxlsxCE_7);
+        function pop_grupos_escoteirosxlsxDF_8(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['ge'] !== null ? autolinker.link(feature.properties['ge'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['uf'] !== null ? autolinker.link(feature.properties['uf'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['cidade'] !== null ? autolinker.link(feature.properties['cidade'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['endereço'] !== null ? autolinker.link(feature.properties['endereço'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_grupos_escoteirosxlsxDF_8_0() {
+            return {
+                pane: 'pane_grupos_escoteirosxlsxDF_8',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(161,161,161,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_grupos_escoteirosxlsxDF_8');
+        map.getPane('pane_grupos_escoteirosxlsxDF_8').style.zIndex = 408;
+        map.getPane('pane_grupos_escoteirosxlsxDF_8').style['mix-blend-mode'] = 'normal';
+        var layer_grupos_escoteirosxlsxDF_8 = new L.geoJson(json_grupos_escoteirosxlsxDF_8, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_grupos_escoteirosxlsxDF_8',
+            layerName: 'layer_grupos_escoteirosxlsxDF_8',
+            pane: 'pane_grupos_escoteirosxlsxDF_8',
+            onEachFeature: pop_grupos_escoteirosxlsxDF_8,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_grupos_escoteirosxlsxDF_8_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_grupos_escoteirosxlsxDF_8);
+        map.addLayer(layer_grupos_escoteirosxlsxDF_8);
+        function pop_grupos_escoteirosxlsxES_9(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['ge'] !== null ? autolinker.link(feature.properties['ge'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['uf'] !== null ? autolinker.link(feature.properties['uf'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['cidade'] !== null ? autolinker.link(feature.properties['cidade'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['endereço'] !== null ? autolinker.link(feature.properties['endereço'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_grupos_escoteirosxlsxES_9_0() {
+            return {
+                pane: 'pane_grupos_escoteirosxlsxES_9',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(197,61,149,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_grupos_escoteirosxlsxES_9');
+        map.getPane('pane_grupos_escoteirosxlsxES_9').style.zIndex = 409;
+        map.getPane('pane_grupos_escoteirosxlsxES_9').style['mix-blend-mode'] = 'normal';
+        var layer_grupos_escoteirosxlsxES_9 = new L.geoJson(json_grupos_escoteirosxlsxES_9, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_grupos_escoteirosxlsxES_9',
+            layerName: 'layer_grupos_escoteirosxlsxES_9',
+            pane: 'pane_grupos_escoteirosxlsxES_9',
+            onEachFeature: pop_grupos_escoteirosxlsxES_9,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_grupos_escoteirosxlsxES_9_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_grupos_escoteirosxlsxES_9);
+        map.addLayer(layer_grupos_escoteirosxlsxES_9);
+        function pop_grupos_escoteirosxlsxGO_10(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['ge'] !== null ? autolinker.link(feature.properties['ge'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['uf'] !== null ? autolinker.link(feature.properties['uf'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['cidade'] !== null ? autolinker.link(feature.properties['cidade'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['endereço'] !== null ? autolinker.link(feature.properties['endereço'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_grupos_escoteirosxlsxGO_10_0() {
+            return {
+                pane: 'pane_grupos_escoteirosxlsxGO_10',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(0,176,109,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_grupos_escoteirosxlsxGO_10');
+        map.getPane('pane_grupos_escoteirosxlsxGO_10').style.zIndex = 410;
+        map.getPane('pane_grupos_escoteirosxlsxGO_10').style['mix-blend-mode'] = 'normal';
+        var layer_grupos_escoteirosxlsxGO_10 = new L.geoJson(json_grupos_escoteirosxlsxGO_10, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_grupos_escoteirosxlsxGO_10',
+            layerName: 'layer_grupos_escoteirosxlsxGO_10',
+            pane: 'pane_grupos_escoteirosxlsxGO_10',
+            onEachFeature: pop_grupos_escoteirosxlsxGO_10,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_grupos_escoteirosxlsxGO_10_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_grupos_escoteirosxlsxGO_10);
+        map.addLayer(layer_grupos_escoteirosxlsxGO_10);
+        function pop_grupos_escoteirosxlsxMA_11(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['ge'] !== null ? autolinker.link(feature.properties['ge'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['uf'] !== null ? autolinker.link(feature.properties['uf'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['cidade'] !== null ? autolinker.link(feature.properties['cidade'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['endereço'] !== null ? autolinker.link(feature.properties['endereço'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_grupos_escoteirosxlsxMA_11_0() {
+            return {
+                pane: 'pane_grupos_escoteirosxlsxMA_11',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(109,109,126,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_grupos_escoteirosxlsxMA_11');
+        map.getPane('pane_grupos_escoteirosxlsxMA_11').style.zIndex = 411;
+        map.getPane('pane_grupos_escoteirosxlsxMA_11').style['mix-blend-mode'] = 'normal';
+        var layer_grupos_escoteirosxlsxMA_11 = new L.geoJson(json_grupos_escoteirosxlsxMA_11, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_grupos_escoteirosxlsxMA_11',
+            layerName: 'layer_grupos_escoteirosxlsxMA_11',
+            pane: 'pane_grupos_escoteirosxlsxMA_11',
+            onEachFeature: pop_grupos_escoteirosxlsxMA_11,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_grupos_escoteirosxlsxMA_11_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_grupos_escoteirosxlsxMA_11);
+        map.addLayer(layer_grupos_escoteirosxlsxMA_11);
+        function pop_grupos_escoteirosxlsxMG_12(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['ge'] !== null ? autolinker.link(feature.properties['ge'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['uf'] !== null ? autolinker.link(feature.properties['uf'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['cidade'] !== null ? autolinker.link(feature.properties['cidade'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['endereço'] !== null ? autolinker.link(feature.properties['endereço'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_grupos_escoteirosxlsxMG_12_0() {
+            return {
+                pane: 'pane_grupos_escoteirosxlsxMG_12',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(5,80,0,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_grupos_escoteirosxlsxMG_12');
+        map.getPane('pane_grupos_escoteirosxlsxMG_12').style.zIndex = 412;
+        map.getPane('pane_grupos_escoteirosxlsxMG_12').style['mix-blend-mode'] = 'normal';
+        var layer_grupos_escoteirosxlsxMG_12 = new L.geoJson(json_grupos_escoteirosxlsxMG_12, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_grupos_escoteirosxlsxMG_12',
+            layerName: 'layer_grupos_escoteirosxlsxMG_12',
+            pane: 'pane_grupos_escoteirosxlsxMG_12',
+            onEachFeature: pop_grupos_escoteirosxlsxMG_12,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_grupos_escoteirosxlsxMG_12_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_grupos_escoteirosxlsxMG_12);
+        map.addLayer(layer_grupos_escoteirosxlsxMG_12);
+        function pop_grupos_escoteirosxlsxMS_13(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['ge'] !== null ? autolinker.link(feature.properties['ge'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['uf'] !== null ? autolinker.link(feature.properties['uf'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['cidade'] !== null ? autolinker.link(feature.properties['cidade'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['endereço'] !== null ? autolinker.link(feature.properties['endereço'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_grupos_escoteirosxlsxMS_13_0() {
+            return {
+                pane: 'pane_grupos_escoteirosxlsxMS_13',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(113,210,255,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_grupos_escoteirosxlsxMS_13');
+        map.getPane('pane_grupos_escoteirosxlsxMS_13').style.zIndex = 413;
+        map.getPane('pane_grupos_escoteirosxlsxMS_13').style['mix-blend-mode'] = 'normal';
+        var layer_grupos_escoteirosxlsxMS_13 = new L.geoJson(json_grupos_escoteirosxlsxMS_13, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_grupos_escoteirosxlsxMS_13',
+            layerName: 'layer_grupos_escoteirosxlsxMS_13',
+            pane: 'pane_grupos_escoteirosxlsxMS_13',
+            onEachFeature: pop_grupos_escoteirosxlsxMS_13,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_grupos_escoteirosxlsxMS_13_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_grupos_escoteirosxlsxMS_13);
+        map.addLayer(layer_grupos_escoteirosxlsxMS_13);
+        function pop_grupos_escoteirosxlsxMT_14(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['ge'] !== null ? autolinker.link(feature.properties['ge'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['uf'] !== null ? autolinker.link(feature.properties['uf'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['cidade'] !== null ? autolinker.link(feature.properties['cidade'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['endereço'] !== null ? autolinker.link(feature.properties['endereço'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_grupos_escoteirosxlsxMT_14_0() {
+            return {
+                pane: 'pane_grupos_escoteirosxlsxMT_14',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(0,93,174,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_grupos_escoteirosxlsxMT_14');
+        map.getPane('pane_grupos_escoteirosxlsxMT_14').style.zIndex = 414;
+        map.getPane('pane_grupos_escoteirosxlsxMT_14').style['mix-blend-mode'] = 'normal';
+        var layer_grupos_escoteirosxlsxMT_14 = new L.geoJson(json_grupos_escoteirosxlsxMT_14, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_grupos_escoteirosxlsxMT_14',
+            layerName: 'layer_grupos_escoteirosxlsxMT_14',
+            pane: 'pane_grupos_escoteirosxlsxMT_14',
+            onEachFeature: pop_grupos_escoteirosxlsxMT_14,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_grupos_escoteirosxlsxMT_14_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_grupos_escoteirosxlsxMT_14);
+        map.addLayer(layer_grupos_escoteirosxlsxMT_14);
+        function pop_grupos_escoteirosxlsxPA_15(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['ge'] !== null ? autolinker.link(feature.properties['ge'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['uf'] !== null ? autolinker.link(feature.properties['uf'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['cidade'] !== null ? autolinker.link(feature.properties['cidade'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['endereço'] !== null ? autolinker.link(feature.properties['endereço'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_grupos_escoteirosxlsxPA_15_0() {
+            return {
+                pane: 'pane_grupos_escoteirosxlsxPA_15',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(224,22,0,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_grupos_escoteirosxlsxPA_15');
+        map.getPane('pane_grupos_escoteirosxlsxPA_15').style.zIndex = 415;
+        map.getPane('pane_grupos_escoteirosxlsxPA_15').style['mix-blend-mode'] = 'normal';
+        var layer_grupos_escoteirosxlsxPA_15 = new L.geoJson(json_grupos_escoteirosxlsxPA_15, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_grupos_escoteirosxlsxPA_15',
+            layerName: 'layer_grupos_escoteirosxlsxPA_15',
+            pane: 'pane_grupos_escoteirosxlsxPA_15',
+            onEachFeature: pop_grupos_escoteirosxlsxPA_15,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_grupos_escoteirosxlsxPA_15_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_grupos_escoteirosxlsxPA_15);
+        map.addLayer(layer_grupos_escoteirosxlsxPA_15);
+        function pop_grupos_escoteirosxlsxPB_16(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['ge'] !== null ? autolinker.link(feature.properties['ge'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['uf'] !== null ? autolinker.link(feature.properties['uf'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['cidade'] !== null ? autolinker.link(feature.properties['cidade'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['endereço'] !== null ? autolinker.link(feature.properties['endereço'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_grupos_escoteirosxlsxPB_16_0() {
+            return {
+                pane: 'pane_grupos_escoteirosxlsxPB_16',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(215,7,10,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_grupos_escoteirosxlsxPB_16');
+        map.getPane('pane_grupos_escoteirosxlsxPB_16').style.zIndex = 416;
+        map.getPane('pane_grupos_escoteirosxlsxPB_16').style['mix-blend-mode'] = 'normal';
+        var layer_grupos_escoteirosxlsxPB_16 = new L.geoJson(json_grupos_escoteirosxlsxPB_16, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_grupos_escoteirosxlsxPB_16',
+            layerName: 'layer_grupos_escoteirosxlsxPB_16',
+            pane: 'pane_grupos_escoteirosxlsxPB_16',
+            onEachFeature: pop_grupos_escoteirosxlsxPB_16,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_grupos_escoteirosxlsxPB_16_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_grupos_escoteirosxlsxPB_16);
+        map.addLayer(layer_grupos_escoteirosxlsxPB_16);
+        function pop_grupos_escoteirosxlsxPE_17(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['ge'] !== null ? autolinker.link(feature.properties['ge'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['uf'] !== null ? autolinker.link(feature.properties['uf'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['cidade'] !== null ? autolinker.link(feature.properties['cidade'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['endereço'] !== null ? autolinker.link(feature.properties['endereço'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_grupos_escoteirosxlsxPE_17_0() {
+            return {
+                pane: 'pane_grupos_escoteirosxlsxPE_17',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(0,45,134,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_grupos_escoteirosxlsxPE_17');
+        map.getPane('pane_grupos_escoteirosxlsxPE_17').style.zIndex = 417;
+        map.getPane('pane_grupos_escoteirosxlsxPE_17').style['mix-blend-mode'] = 'normal';
+        var layer_grupos_escoteirosxlsxPE_17 = new L.geoJson(json_grupos_escoteirosxlsxPE_17, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_grupos_escoteirosxlsxPE_17',
+            layerName: 'layer_grupos_escoteirosxlsxPE_17',
+            pane: 'pane_grupos_escoteirosxlsxPE_17',
+            onEachFeature: pop_grupos_escoteirosxlsxPE_17,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_grupos_escoteirosxlsxPE_17_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_grupos_escoteirosxlsxPE_17);
+        map.addLayer(layer_grupos_escoteirosxlsxPE_17);
+        function pop_grupos_escoteirosxlsxPI_18(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['ge'] !== null ? autolinker.link(feature.properties['ge'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['uf'] !== null ? autolinker.link(feature.properties['uf'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['cidade'] !== null ? autolinker.link(feature.properties['cidade'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['endereço'] !== null ? autolinker.link(feature.properties['endereço'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_grupos_escoteirosxlsxPI_18_0() {
+            return {
+                pane: 'pane_grupos_escoteirosxlsxPI_18',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(236,228,0,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_grupos_escoteirosxlsxPI_18');
+        map.getPane('pane_grupos_escoteirosxlsxPI_18').style.zIndex = 418;
+        map.getPane('pane_grupos_escoteirosxlsxPI_18').style['mix-blend-mode'] = 'normal';
+        var layer_grupos_escoteirosxlsxPI_18 = new L.geoJson(json_grupos_escoteirosxlsxPI_18, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_grupos_escoteirosxlsxPI_18',
+            layerName: 'layer_grupos_escoteirosxlsxPI_18',
+            pane: 'pane_grupos_escoteirosxlsxPI_18',
+            onEachFeature: pop_grupos_escoteirosxlsxPI_18,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_grupos_escoteirosxlsxPI_18_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_grupos_escoteirosxlsxPI_18);
+        map.addLayer(layer_grupos_escoteirosxlsxPI_18);
+        function pop_grupos_escoteirosxlsxPR_19(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['ge'] !== null ? autolinker.link(feature.properties['ge'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['uf'] !== null ? autolinker.link(feature.properties['uf'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['cidade'] !== null ? autolinker.link(feature.properties['cidade'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['endereço'] !== null ? autolinker.link(feature.properties['endereço'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_grupos_escoteirosxlsxPR_19_0() {
+            return {
+                pane: 'pane_grupos_escoteirosxlsxPR_19',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(11,168,0,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_grupos_escoteirosxlsxPR_19');
+        map.getPane('pane_grupos_escoteirosxlsxPR_19').style.zIndex = 419;
+        map.getPane('pane_grupos_escoteirosxlsxPR_19').style['mix-blend-mode'] = 'normal';
+        var layer_grupos_escoteirosxlsxPR_19 = new L.geoJson(json_grupos_escoteirosxlsxPR_19, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_grupos_escoteirosxlsxPR_19',
+            layerName: 'layer_grupos_escoteirosxlsxPR_19',
+            pane: 'pane_grupos_escoteirosxlsxPR_19',
+            onEachFeature: pop_grupos_escoteirosxlsxPR_19,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_grupos_escoteirosxlsxPR_19_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_grupos_escoteirosxlsxPR_19);
+        map.addLayer(layer_grupos_escoteirosxlsxPR_19);
+        function pop_grupos_escoteirosxlsxRJ_20(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['ge'] !== null ? autolinker.link(feature.properties['ge'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['uf'] !== null ? autolinker.link(feature.properties['uf'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['cidade'] !== null ? autolinker.link(feature.properties['cidade'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['endereço'] !== null ? autolinker.link(feature.properties['endereço'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_grupos_escoteirosxlsxRJ_20_0() {
+            return {
+                pane: 'pane_grupos_escoteirosxlsxRJ_20',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(0,177,212,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_grupos_escoteirosxlsxRJ_20');
+        map.getPane('pane_grupos_escoteirosxlsxRJ_20').style.zIndex = 420;
+        map.getPane('pane_grupos_escoteirosxlsxRJ_20').style['mix-blend-mode'] = 'normal';
+        var layer_grupos_escoteirosxlsxRJ_20 = new L.geoJson(json_grupos_escoteirosxlsxRJ_20, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_grupos_escoteirosxlsxRJ_20',
+            layerName: 'layer_grupos_escoteirosxlsxRJ_20',
+            pane: 'pane_grupos_escoteirosxlsxRJ_20',
+            onEachFeature: pop_grupos_escoteirosxlsxRJ_20,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_grupos_escoteirosxlsxRJ_20_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_grupos_escoteirosxlsxRJ_20);
+        map.addLayer(layer_grupos_escoteirosxlsxRJ_20);
+        function pop_grupos_escoteirosxlsxRN_21(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['ge'] !== null ? autolinker.link(feature.properties['ge'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['uf'] !== null ? autolinker.link(feature.properties['uf'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['cidade'] !== null ? autolinker.link(feature.properties['cidade'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['endereço'] !== null ? autolinker.link(feature.properties['endereço'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_grupos_escoteirosxlsxRN_21_0() {
+            return {
+                pane: 'pane_grupos_escoteirosxlsxRN_21',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(40,180,68,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_grupos_escoteirosxlsxRN_21');
+        map.getPane('pane_grupos_escoteirosxlsxRN_21').style.zIndex = 421;
+        map.getPane('pane_grupos_escoteirosxlsxRN_21').style['mix-blend-mode'] = 'normal';
+        var layer_grupos_escoteirosxlsxRN_21 = new L.geoJson(json_grupos_escoteirosxlsxRN_21, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_grupos_escoteirosxlsxRN_21',
+            layerName: 'layer_grupos_escoteirosxlsxRN_21',
+            pane: 'pane_grupos_escoteirosxlsxRN_21',
+            onEachFeature: pop_grupos_escoteirosxlsxRN_21,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_grupos_escoteirosxlsxRN_21_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_grupos_escoteirosxlsxRN_21);
+        map.addLayer(layer_grupos_escoteirosxlsxRN_21);
+        function pop_grupos_escoteirosxlsxRO_22(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['ge'] !== null ? autolinker.link(feature.properties['ge'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['uf'] !== null ? autolinker.link(feature.properties['uf'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['cidade'] !== null ? autolinker.link(feature.properties['cidade'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['endereço'] !== null ? autolinker.link(feature.properties['endereço'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_grupos_escoteirosxlsxRO_22_0() {
+            return {
+                pane: 'pane_grupos_escoteirosxlsxRO_22',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(57,85,139,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_grupos_escoteirosxlsxRO_22');
+        map.getPane('pane_grupos_escoteirosxlsxRO_22').style.zIndex = 422;
+        map.getPane('pane_grupos_escoteirosxlsxRO_22').style['mix-blend-mode'] = 'normal';
+        var layer_grupos_escoteirosxlsxRO_22 = new L.geoJson(json_grupos_escoteirosxlsxRO_22, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_grupos_escoteirosxlsxRO_22',
+            layerName: 'layer_grupos_escoteirosxlsxRO_22',
+            pane: 'pane_grupos_escoteirosxlsxRO_22',
+            onEachFeature: pop_grupos_escoteirosxlsxRO_22,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_grupos_escoteirosxlsxRO_22_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_grupos_escoteirosxlsxRO_22);
+        map.addLayer(layer_grupos_escoteirosxlsxRO_22);
+        function pop_grupos_escoteirosxlsxRR_23(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['ge'] !== null ? autolinker.link(feature.properties['ge'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['uf'] !== null ? autolinker.link(feature.properties['uf'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['cidade'] !== null ? autolinker.link(feature.properties['cidade'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['endereço'] !== null ? autolinker.link(feature.properties['endereço'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_grupos_escoteirosxlsxRR_23_0() {
+            return {
+                pane: 'pane_grupos_escoteirosxlsxRR_23',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(31,177,221,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_grupos_escoteirosxlsxRR_23');
+        map.getPane('pane_grupos_escoteirosxlsxRR_23').style.zIndex = 423;
+        map.getPane('pane_grupos_escoteirosxlsxRR_23').style['mix-blend-mode'] = 'normal';
+        var layer_grupos_escoteirosxlsxRR_23 = new L.geoJson(json_grupos_escoteirosxlsxRR_23, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_grupos_escoteirosxlsxRR_23',
+            layerName: 'layer_grupos_escoteirosxlsxRR_23',
+            pane: 'pane_grupos_escoteirosxlsxRR_23',
+            onEachFeature: pop_grupos_escoteirosxlsxRR_23,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_grupos_escoteirosxlsxRR_23_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_grupos_escoteirosxlsxRR_23);
+        map.addLayer(layer_grupos_escoteirosxlsxRR_23);
+        function pop_grupos_escoteirosxlsxRS_24(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['ge'] !== null ? autolinker.link(feature.properties['ge'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['uf'] !== null ? autolinker.link(feature.properties['uf'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['cidade'] !== null ? autolinker.link(feature.properties['cidade'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['endereco'] !== null ? autolinker.link(feature.properties['endereco'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_grupos_escoteirosxlsxRS_24_0() {
+            return {
+                pane: 'pane_grupos_escoteirosxlsxRS_24',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(215,25,28,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_grupos_escoteirosxlsxRS_24');
+        map.getPane('pane_grupos_escoteirosxlsxRS_24').style.zIndex = 424;
+        map.getPane('pane_grupos_escoteirosxlsxRS_24').style['mix-blend-mode'] = 'normal';
+        var layer_grupos_escoteirosxlsxRS_24 = new L.geoJson(json_grupos_escoteirosxlsxRS_24, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_grupos_escoteirosxlsxRS_24',
+            layerName: 'layer_grupos_escoteirosxlsxRS_24',
+            pane: 'pane_grupos_escoteirosxlsxRS_24',
+            onEachFeature: pop_grupos_escoteirosxlsxRS_24,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_grupos_escoteirosxlsxRS_24_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_grupos_escoteirosxlsxRS_24);
+        map.addLayer(layer_grupos_escoteirosxlsxRS_24);
+        function pop_grupos_escoteirosxlsxSC_25(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['ge'] !== null ? autolinker.link(feature.properties['ge'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['uf'] !== null ? autolinker.link(feature.properties['uf'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['cidade'] !== null ? autolinker.link(feature.properties['cidade'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['endereço'] !== null ? autolinker.link(feature.properties['endereço'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_grupos_escoteirosxlsxSC_25_0() {
+            return {
+                pane: 'pane_grupos_escoteirosxlsxSC_25',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(119,193,49,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_grupos_escoteirosxlsxSC_25');
+        map.getPane('pane_grupos_escoteirosxlsxSC_25').style.zIndex = 425;
+        map.getPane('pane_grupos_escoteirosxlsxSC_25').style['mix-blend-mode'] = 'normal';
+        var layer_grupos_escoteirosxlsxSC_25 = new L.geoJson(json_grupos_escoteirosxlsxSC_25, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_grupos_escoteirosxlsxSC_25',
+            layerName: 'layer_grupos_escoteirosxlsxSC_25',
+            pane: 'pane_grupos_escoteirosxlsxSC_25',
+            onEachFeature: pop_grupos_escoteirosxlsxSC_25,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_grupos_escoteirosxlsxSC_25_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_grupos_escoteirosxlsxSC_25);
+        map.addLayer(layer_grupos_escoteirosxlsxSC_25);
+        function pop_grupos_escoteirosxlsxSE_26(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['ge'] !== null ? autolinker.link(feature.properties['ge'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['uf'] !== null ? autolinker.link(feature.properties['uf'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['cidade'] !== null ? autolinker.link(feature.properties['cidade'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['endereço'] !== null ? autolinker.link(feature.properties['endereço'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_grupos_escoteirosxlsxSE_26_0() {
+            return {
+                pane: 'pane_grupos_escoteirosxlsxSE_26',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(239,208,67,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_grupos_escoteirosxlsxSE_26');
+        map.getPane('pane_grupos_escoteirosxlsxSE_26').style.zIndex = 426;
+        map.getPane('pane_grupos_escoteirosxlsxSE_26').style['mix-blend-mode'] = 'normal';
+        var layer_grupos_escoteirosxlsxSE_26 = new L.geoJson(json_grupos_escoteirosxlsxSE_26, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_grupos_escoteirosxlsxSE_26',
+            layerName: 'layer_grupos_escoteirosxlsxSE_26',
+            pane: 'pane_grupos_escoteirosxlsxSE_26',
+            onEachFeature: pop_grupos_escoteirosxlsxSE_26,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_grupos_escoteirosxlsxSE_26_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_grupos_escoteirosxlsxSE_26);
+        map.addLayer(layer_grupos_escoteirosxlsxSE_26);
+        function pop_grupos_escoteirosxlsxTO_27(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['ge'] !== null ? autolinker.link(feature.properties['ge'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['uf'] !== null ? autolinker.link(feature.properties['uf'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['cidade'] !== null ? autolinker.link(feature.properties['cidade'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['endereço'] !== null ? autolinker.link(feature.properties['endereço'].toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_grupos_escoteirosxlsxTO_27_0() {
+            return {
+                pane: 'pane_grupos_escoteirosxlsxTO_27',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(236,197,56,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_grupos_escoteirosxlsxTO_27');
+        map.getPane('pane_grupos_escoteirosxlsxTO_27').style.zIndex = 427;
+        map.getPane('pane_grupos_escoteirosxlsxTO_27').style['mix-blend-mode'] = 'normal';
+        var layer_grupos_escoteirosxlsxTO_27 = new L.geoJson(json_grupos_escoteirosxlsxTO_27, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_grupos_escoteirosxlsxTO_27',
+            layerName: 'layer_grupos_escoteirosxlsxTO_27',
+            pane: 'pane_grupos_escoteirosxlsxTO_27',
+            onEachFeature: pop_grupos_escoteirosxlsxTO_27,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_grupos_escoteirosxlsxTO_27_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_grupos_escoteirosxlsxTO_27);
+        map.addLayer(layer_grupos_escoteirosxlsxTO_27);
+        var osmGeocoder = new L.Control.Geocoder({
+            collapsed: true,
+            position: 'topleft',
+            text: 'Search',
+            title: 'Testing'
+        }).addTo(map);
+        document.getElementsByClassName('leaflet-control-geocoder-icon')[0]
+        .className += ' fa fa-search';
+        document.getElementsByClassName('leaflet-control-geocoder-icon')[0]
+        .title += 'Search for a place';
+        setBounds();
+        var i = 0;
+        layer_grupos_escoteirosxlsxPR_19.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['ge'] !== null?String('<div style="color: #323232; font-size: 10pt; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['ge']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_grupos_escoteirosxlsxPR_19'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        resetLabels([layer_grupos_escoteirosxlsxPR_19]);
+        map.on("zoomend", function(){
+            resetLabels([layer_grupos_escoteirosxlsxPR_19]);
+        });
+        map.on("layeradd", function(){
+            resetLabels([layer_grupos_escoteirosxlsxPR_19]);
+        });
+        map.on("layerremove", function(){
+            resetLabels([layer_grupos_escoteirosxlsxPR_19]);
+        });
+        </script>
+    </body>
+</html>
